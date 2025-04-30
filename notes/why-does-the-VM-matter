@@ -1,0 +1,5 @@
+# Why does the VM matter?
+In a smart contract blockchain system, the **VM is the system** that **can understand smart contract code** and **execute state transitions** based on the rules defined in this code. The _VM is the operating system for the smart contract blockchain_.
+
+
+In this imminent environment where bandwidth is cheap, the next **bottleneck will be computational throughput: how fast a system can execute transactions while keeping the underlying hardware requirements low enough for sufficient decentralization**. The FuelVM has the advantage of being designed with these considerations for the future in mind and can optimize accordingly.

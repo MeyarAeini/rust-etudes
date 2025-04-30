@@ -1,0 +1,6 @@
+# What Is a [Non-Fungible Token (NFT)](https://www.investopedia.com/non-fungible-tokens-nft-5115211)?
+Non-fungible tokens (NFTs) are assets like artworks, digital content, or videos that have been tokenized via a blockchain. Tokens are unique identification codes created from metadata via an encryption function. These tokens are then stored on a digital ledger, while the assets themselves are stored in other places. The connection between the token and the asset is what makes them unique.
+
+NFTs can be traded and exchanged for money, cryptocurrencies, or other NFTs—it all depends on the value the market and owners have placed on them. For instance, you could draw a smiley face on a banana, take a picture of it (which has metadata attached to it), and tokenize it on a blockchain. Whoever has the private keys to that token owns whatever rights you have assigned to it.
+
+Cryptocurrencies are similar to NFTs, in that both are secured on blockchain networks. The key difference is **cryptocurrencies are fungible**, or interchangeable. While there's no significant difference between one bitcoin and another, **no two NFTs are identical**.

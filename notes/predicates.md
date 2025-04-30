@@ -1,0 +1,3 @@
+A **predicate** is a pure (does not access state) contract script that simply returns a boolean (true or false). UTXOs can be locked behind a predicate so they can only be spent whenever the conditions defined in the predicate are met. This leads to an interesting UX opportunity where users can set a transaction to execute only under certain conditions, and then once the predicate is met, their transaction can automatically execute. Also, **predicates can be pruned when they are destroyed, so they do not contribute to state bloat**.
+
+Trivial demonstrative example: User sets a transaction to buy X tokens whenever the price meets the threshold defined in the predicate. Voila, the pièce de résistance, fully on chain trustless limit orders that won’t bloat the state!

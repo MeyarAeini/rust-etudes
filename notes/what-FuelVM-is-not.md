@@ -1,0 +1,1 @@
+- for stateful application designs
