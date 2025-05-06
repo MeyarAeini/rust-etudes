@@ -1,0 +1,2 @@
+# [What is staking?](https://www.coinbase.com/en-ca/learn/crypto-basics/what-is-staking)
+Staking is a way to earn rewards by putting your crypto to work on a blockchain network. In return for helping the network run smoothly and securely, you receive more of the cryptocurrency you're staking. The rewards come from the network itself—your crypto isn’t being lent out. It’s a safe, simple and popular way to grow your crypto while holding.
