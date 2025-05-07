@@ -45,10 +45,40 @@ impl<T> Drop for List<T> {
     }
 }
 
+pub struct IntoIter<T>(List<T>);
+
+impl<T> List<T>{
+    pub fn into_iter(self) -> IntoIter<T> {
+        IntoIter(self)
+    }
+}
+
+impl<T> Iterator for IntoIter<T> {
+    type Item = T;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.pop()
+    }
+}
+
+
+
 #[cfg(test)]
 mod test {
     use super::*;
 
+    #[test]
+    fn into_iter_test(){
+        let mut lst = List::new();
+        lst.push(1);
+        lst.push(2);
+        lst.push(3);
+
+        let mut itr = lst.into_iter();
+        assert_eq!(itr.next(), Some(3));
+        assert_eq!(itr.next(), Some(2));
+        assert_eq!(itr.next(), Some(1));
+    }
+    
     #[test]
     fn top_test(){
         let mut lst = List::new();
