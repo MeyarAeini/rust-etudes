@@ -1,8 +1,9 @@
-pub struct List<T> (Link<T>);
+
+struct Node<T>(T,Link<T>);
 
 type Link<T> = Option<Box<Node<T>>>;
 
-struct Node<T>(T,Link<T>);
+pub struct List<T> (Link<T>);
 
 impl<T> List<T> {
     pub fn new() -> Self {
@@ -61,10 +62,45 @@ impl<T> Iterator for IntoIter<T> {
 }
 
 
+pub struct Iter<'a, T>(Option<&'a Node<T>>);
+
+impl<T> List<T> {
+    //lifetime elision
+    //pub fn iter<'a>(&'a self) -> Iter<'a, T> { 
+    pub fn iter(& self) -> Iter<T> {
+        Iter(self.0.as_deref())
+    }
+}
+
+impl<'a, T> Iterator for Iter<'a, T> {
+    type Item = &'a T;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.map(|node| {
+            self.0 = node.1.as_deref();
+
+            & node.0
+        })
+    }
+}
+
 
 #[cfg(test)]
 mod test {
     use super::*;
+
+    #[test]
+    fn iter_test(){
+        let mut lst = List::new();
+        lst.push(1);
+        lst.push(2);
+        lst.push(3);
+
+        let mut itr = lst.iter();
+        assert_eq!(itr.next(), Some(&3));
+        assert_eq!(itr.next(), Some(&2));
+        assert_eq!(itr.next(), Some(&1));
+        assert_eq!(itr.next(), None);
+    }
 
     #[test]
     fn into_iter_test(){
@@ -77,8 +113,9 @@ mod test {
         assert_eq!(itr.next(), Some(3));
         assert_eq!(itr.next(), Some(2));
         assert_eq!(itr.next(), Some(1));
+        assert_eq!(itr.next(), None);
     }
-    
+
     #[test]
     fn top_test(){
         let mut lst = List::new();
