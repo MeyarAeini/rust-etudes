@@ -83,10 +83,46 @@ impl<'a, T> Iterator for Iter<'a, T> {
     }
 }
 
+pub struct IterMut<'a, T>(Option<&'a mut Node<T>>);
+
+impl<T> List<T> {
+    pub fn iter_mut(&mut self) -> IterMut<'_, T> {
+        IterMut(self.0.as_deref_mut())
+    }
+}
+
+impl<'a, T> Iterator for IterMut<'a, T> {
+    type Item = &'a mut T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.take().map(|node| {
+            self.0 = node.1.as_deref_mut();
+
+            &mut node.0
+        })
+    }
+}
+
 
 #[cfg(test)]
 mod test {
     use super::*;
+
+    #[test]
+    fn iter_mut_test(){
+        let mut lst = List::new();
+        lst.push(1);
+        lst.push(2);
+        lst.push(3);
+
+        let mut itr = lst.iter_mut();
+        let mut next = itr.next();
+        assert_eq!(next, Some(&mut 3));
+        next = Some(&mut 5);
+        assert_eq!(itr.next(), Some(&mut 2));
+        assert_eq!(itr.next(), Some(&mut 1));
+        assert_eq!(itr.next(), None);
+    }
 
     #[test]
     fn iter_test(){
