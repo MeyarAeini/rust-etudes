@@ -5,7 +5,8 @@ pub trait IteratorExt: Iterator {
         Self: Sized;
 }
 
-impl<T: ?Sized> IteratorExt for T
+//: ?Sized
+impl<T> IteratorExt for T
 where
     T: Iterator,
 {
