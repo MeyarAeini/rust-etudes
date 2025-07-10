@@ -26,7 +26,7 @@ mod tests {
     }
 }
 
-//Invariants 
+//Invariants
 //
 //fn foo(x: &mut &'a str, y: &'a str) {
 //      *x = &y;
@@ -37,3 +37,20 @@ mod tests {
 //foo(&mut x, &y);
 //drop(y);
 //println!("{}", x);
+
+use std::marker::PhantomData;
+
+//the lifetime of deserilizer limits lifetime of t
+struct Deserializer<T> {
+    _t: PhantomData<T>,
+}
+
+//the life time of the deserializer2 does not limit the life time of t
+struct Deserializer2<T> {
+    _t: PhantomData<fn() -> T>,
+}
+
+//invariant
+struct Deserializer3<T> {
+    _t: PhantomData<fn(T)>,
+}
