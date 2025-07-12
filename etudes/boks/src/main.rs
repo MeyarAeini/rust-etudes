@@ -1,17 +1,19 @@
 #![feature(dropck_eyepatch)]
 
 use std::marker::PhantomData;
+use std::ptr::NonNull;
 
 pub struct Boks<T> {
-    t: *mut T,
-    _t:PhantomData<T>,
+    t: NonNull<T>, //Because we want to be covariant in T, * mut is invariant in T
+    _t: PhantomData<T>,
 }
 
 impl<T> Boks<T> {
     pub fn ny(t: T) -> Self {
         Self {
-            t: Box::into_raw(Box::new(t)),
-            _t:PhantomData
+            //SAFETY: we know the box never give outs a null pointer
+            t: unsafe { NonNull::new_unchecked(Box::into_raw(Box::new(t))) },
+            _t: PhantomData,
         }
     }
 }
@@ -19,7 +21,7 @@ impl<T> Boks<T> {
 unsafe impl<#[may_dangle] T> Drop for Boks<T> {
     fn drop(&mut self) {
         unsafe {
-            let _ = Box::from_raw(self.t);
+            let _ = Box::from_raw(self.t.as_mut());
         }
     }
 }
@@ -32,7 +34,7 @@ impl<T> Deref for Boks<T> {
         //SAFETY:
         //the t is created from a valid T by using a Box and it has not been freed since the self
         //is alived
-        unsafe { &*self.t }
+        unsafe { &*self.t.as_ref() }
     }
 }
 
@@ -44,17 +46,17 @@ impl<T> DerefMut for Boks<T> {
         //the t is created from a valid T by using a Box and it has not been freed since the self
         //is alived. this would be the only mut reference to t since the &mut self is the only mutable
         //reference
-        unsafe { &mut *self.t }
+        unsafe { &mut *self.t.as_mut() }
     }
 }
 
 use std::fmt::Debug;
 
-struct Oisan<T:Debug> (T);
+struct Oisan<T: Debug>(T);
 
-impl<T:Debug> Drop for Oisan<T> {
+impl<T: Debug> Drop for Oisan<T> {
     fn drop(&mut self) {
-        println!("{:?}",self.0);
+        println!("{:?}", self.0);
     }
 }
 
@@ -65,7 +67,7 @@ fn main() {
 
     let mut y = 32;
     let b2 = Box::new(&mut y);
-    println!("{}",y);
+    println!("{}", y);
 
     let mut z = 122;
     let o = Boks::ny(Oisan(&mut z));
