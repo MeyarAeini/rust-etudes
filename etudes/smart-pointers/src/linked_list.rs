@@ -69,6 +69,29 @@ impl<'a, T> Iterator for LinkedListIterator<'a, T> {
     }
 }
 
+pub struct LinkedListIterMut<'a, T> {
+    current: Option<&'a mut Node<T>>,
+}
+
+impl<'a, T> Iterator for LinkedListIterMut<'a, T> {
+    type Item = &'a mut T;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.current.take().map(|node| {
+            self.current = node.next.as_deref_mut();
+
+            &mut node.value
+        })
+    }
+}
+
+impl<T> LinkedList<T> {
+    pub fn to_iter_mut(&mut self) -> LinkedListIterMut<'_, T> {
+        LinkedListIterMut {
+            current: self.head.as_deref_mut(),
+        }
+    }
+}
+
 impl<T> Drop for LinkedList<T> {
     fn drop(&mut self) {
         let mut link = self.head.take();

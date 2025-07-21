@@ -3,5 +3,5 @@
 version = 4
 
 [[package]]
-name = "priority_queue"
+name = "smart_pointers"
 version = "0.1.0"

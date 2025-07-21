@@ -1,5 +1,5 @@
 [package]
-name = "priority_queue"
+name = "smart_pointers"
 version = "0.1.0"
 edition = "2024"
 
