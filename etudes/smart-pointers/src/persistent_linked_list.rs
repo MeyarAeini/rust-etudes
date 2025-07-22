@@ -1,6 +1,5 @@
-use std::rc::Rc;
-
-type Link<T> = Option<Rc<Node<T>>>;
+use std::sync::Arc;
+type Link<T> = Option<Arc<Node<T>>>;
 
 struct Node<T> {
     value: T,
@@ -17,7 +16,7 @@ impl<T> LinkedList<T> {
     }
 
     pub fn push_back(&mut self, value: T) {
-        let new_head = Rc::new(Node {
+        let new_head = Arc::new(Node {
             value,
             next: self.head.take(),
         });
@@ -39,7 +38,7 @@ impl<T> Drop for LinkedList<T> {
     fn drop(&mut self) {
         let mut head = self.head.take();
         while let Some(node) = head {
-            if let Ok(mut node) = Rc::try_unwrap(node) {
+            if let Ok(mut node) = Arc::try_unwrap(node) {
                 head = node.next.take();
             } else {
                 break;
