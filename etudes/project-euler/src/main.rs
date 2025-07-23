@@ -1,8 +1,8 @@
-pub mod problem_1;
-pub mod problem_2;
-pub mod problem_3;
-pub mod problem_4;
-pub mod problem_5;
+use project_euler::problem_1;
+use project_euler::problem_2;
+use project_euler::problem_3;
+use project_euler::problem_4;
+use project_euler::problem_5;
 
 fn main() {
     problem_1::print_result();
