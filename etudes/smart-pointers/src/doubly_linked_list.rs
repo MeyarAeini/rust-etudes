@@ -120,25 +120,41 @@ impl<T> Drop for LinkedList<T> {
 }
 
 pub struct IntoIter<T>(LinkedList<T>);
+
 impl<T> LinkedList<T> {
     pub fn into_iter(self) -> IntoIter<T> {
         IntoIter(self)
     }
 }
+
 impl<T> Iterator for IntoIter<T> {
     type Item = T;
     fn next(&mut self) -> Option<Self::Item> {
         self.0.pop_back()
     }
 }
+
 impl<T> DoubleEndedIterator for IntoIter<T> {
     fn next_back(&mut self) -> Option<Self::Item> {
         self.0.pop_front()
     }
 }
+//
+//pub struct LinkedIter<T> {
+//    back: Ref<Node<T>>,
+//    front: Ref<Node<T>>,
+//}
+//
+//impl LinkedList<T> {
+//    pub fn iter(&self) -> LinkedIter<T> {
+//        LinkedIter {}
+//    }
+//}
 
 #[cfg(test)]
 mod tests {
+    use std::fmt::Debug;
+
     use super::*;
     #[test]
     fn push_works() {
@@ -166,4 +182,30 @@ mod tests {
         assert_eq!(it.next(), None);
         assert_eq!(it.next_back(), None);
     }
+
+    #[test]
+    fn concurrent_list_works() {
+        use std::sync::{Arc, Mutex};
+        use std::thread;
+
+        //let lst = Arc::new(Mutex::new(LinkedList::new()));
+        //let lst1 = Arc::clone(&lst);
+        //let lst2 = Arc::clone(&lst);
+
+        // let x = std::thread::spawn(|| {
+        //     if let Ok(mut lst) = lst1.lock() {
+        //         lst.push_back(5);
+        //     }
+        //     thread::sleep(std::time::Duration::from_secs(1));
+        // });
+
+        //I think i have learned it wouldn't be easy to write a multi-threaded linked-list using
+        //safe rust
+        //   let y = thread::spawn(move || {
+        //       if let Ok(mut lst) = lst2.lock() {
+        //           lst.push_back(5);
+        //       }
+        //       thread::sleep(std::time::Duration::from_secs(1));
+        //   });
+    } //
 }
