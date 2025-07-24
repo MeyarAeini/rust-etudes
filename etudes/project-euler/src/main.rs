@@ -14,5 +14,6 @@ fn main() {
     problem_5::print_result();
     problem_6::print_result();
     problem_7::print_result();
+    project_euler::problem_8::print_result();
 
 }
