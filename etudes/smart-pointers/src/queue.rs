@@ -1,56 +1,62 @@
 use std::ops::DerefMut;
-
+use std::ptr;
 struct Node<T> {
     element: T,
     next: Link<T>,
 }
 
-type Link<T> = Option<Box<Node<T>>>;
+type Link<T> = *mut Node<T>;
 
 pub struct Queue<T> {
     head: Link<T>,
-    tail: *mut Node<T>,
+    tail: Link<T>,
 }
 
 impl<T> Queue<T> {
     pub fn new() -> Self {
         Self {
-            head: None,
-            tail: std::ptr::null_mut(),
+            head: ptr::null_mut(),
+            tail: ptr::null_mut(),
         }
     }
 
     pub fn push(&mut self, element: T) {
-        let mut node = Box::new(Node {
-            element,
-            next: None,
-        });
+        unsafe {
+            let node = Box::into_raw(Box::new(Node {
+                element,
+                next: ptr::null_mut(),
+            }));
 
-        let node_ptr: *mut _ = node.deref_mut();
-
-        if self.tail.is_null() {
-            self.tail = node_ptr;
-            self.head = Some(node);
-        } else {
-            unsafe {
-                (*self.tail).next = Some(node);
+            if self.tail.is_null() {
+                self.head = node;
+            } else {
+                (*self.tail).next = node;
             }
-
-            self.tail = node_ptr;
+            self.tail = node;
         }
     }
 
     pub fn pop(&mut self) -> Option<T> {
-        if let Some(head) = self.head.take() {
-            self.head = head.next;
-            if self.head.is_none() {
-                self.tail = std::ptr::null_mut();
-            }
+        unsafe {
+            if self.head.is_null() {
+                None
+            } else {
+                let current = Box::from_raw(self.head);
 
-            Some(head.element)
-        } else {
-            None
+                self.head = current.next;
+                if self.head.is_null() {
+                    self.tail = ptr::null_mut();
+                }
+
+                Some(current.element)
+            }
         }
+    }
+}
+
+impl<T> Drop for Queue<T> {
+    fn drop(&mut self) {
+        while let Some(_) = self.pop() {}
     }
 }
 
