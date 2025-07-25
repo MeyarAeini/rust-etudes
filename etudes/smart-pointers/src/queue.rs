@@ -58,6 +58,18 @@ impl<T> Queue<T> {
             }
         }
     }
+
+    pub fn peek(&self) -> Option<&T> {
+        //SAFETY
+        //We know that the head is allocated using Box and as_ref is safe
+        unsafe { self.head.as_ref() }.map(|head| &head.element)
+    }
+
+    pub fn peek_mut(&mut self) -> Option<&mut T> {
+        //SAFETY
+        //We know that the head is allocated using Box and this is the only exclusive reference
+        unsafe { self.head.as_mut() }.map(|head| &mut head.element)
+    }
 }
 
 impl<T> Drop for Queue<T> {
