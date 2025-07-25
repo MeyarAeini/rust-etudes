@@ -94,7 +94,7 @@ where
     pub fn push(&mut self, value: T) {
         self.nodes.push(value);
         let mut i = self.nodes.len() - 1;
-        if i==0 {
+        if i == 0 {
             return;
         }
 
@@ -180,11 +180,11 @@ mod tests {
         heap.push(12);
         assert_eq!(heap.top(), Some(&5));
 
-        println!("{:#?}",heap);
+        println!("{:#?}", heap);
 
         heap.push(2);
-        println!("{:#?}",heap);
+        println!("{:#?}", heap);
 
-        assert_eq!(heap.pop(),Some(2));
+        assert_eq!(heap.pop(), Some(2));
     }
 }
