@@ -1,0 +1,7 @@
+- `failure` for getting ride of `unwrap` and propagating errors
+- `rayon` for parallel setup
+- 'scopeguard` for ensuring teardown even for panics
+- transient errors (e.g. API unreliable, DNS lookup,...)
+- cargo infrastructure (Travis, cargo.toml meta)
+- documentation
+- nicer SSH interface

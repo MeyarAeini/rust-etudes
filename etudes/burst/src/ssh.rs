@@ -2,15 +2,21 @@ use ssh2;
 use std::io;
 use std::net::{self, TcpStream};
 
-//#[derive(Debug)]
 pub struct Session {
     ssh: ssh2::Session,
-    //tcp: TcpStream,
 }
 
 impl Session {
     pub(crate) fn connect<A: net::ToSocketAddrs>(addr: A) -> std::io::Result<Self> {
-        let tcp = TcpStream::connect(addr).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+        let mut retries = 0;
+        let tcp = loop {
+            match TcpStream::connect(&addr) {
+                Ok(tcp) => break tcp,
+                Err(_) if retries < 3 => retries += 1,
+                Err(e) => return Err(e),
+            }
+        };
+
         let mut session =
             ssh2::Session::new().map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
         session.set_tcp_stream(tcp);
@@ -22,10 +28,18 @@ impl Session {
         session
             .userauth_pubkey_file("ec2-user", None, &private_key_path, None)
             .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
-        // session
-        //   .userauth_agent("ec2-user")
-        // .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+
         Ok(Self { ssh: session })
+    }
+
+    pub fn cmd(&self, command: &str) -> Result<String, io::Error> {
+        use io::Read;
+        let mut channel = self.ssh.channel_session()?;
+        channel.exec(command)?;
+        let mut s = String::new();
+        channel.read_to_string(&mut s)?;
+        channel.wait_close()?;
+        Ok(s)
     }
 }
 

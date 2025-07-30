@@ -1,6 +1,5 @@
 use burst::{BurstBuilder, Machine, MachineSetup};
 use std::collections::HashMap;
-use std::io::Read;
 use tokio::runtime::Runtime;
 
 fn main() {
@@ -9,22 +8,19 @@ fn main() {
         "server".to_string(),
         1,
         MachineSetup::new("t2.micro", "ami-083e865b97bdf1c1b", |ssh| {
-            let mut channel = ssh.channel_session()?;
-            channel.exec("ip addr show up")?;
-            let mut s = String::new();
-            channel.read_to_string(&mut s)?;
-            println!("{}", s);
-            channel.wait_close()?;
-            println!("{}", channel.exit_status()?);
+            let result = ssh.cmd("cat etc/hostname")?;
+            println!("ip addr: {}", result);
+
             Ok(())
-            //            ssh.exec("sudo apt install cargo")
         }),
     );
     builder.add_setup(
         "client".to_string(),
         1,
         MachineSetup::new("t2.micro", "ami-083e865b97bdf1c1b", |ssh| {
-            //          ssh.exec("sudo apt install cargo")
+            let result = ssh.cmd("date")?;
+            println!("date: {}", result);
+
             Ok(())
         }),
     );
@@ -32,11 +28,17 @@ fn main() {
     let rt = Runtime::new().unwrap();
     rt.block_on(async {
         builder
-            .run(|vms: HashMap<String, &[Machine]>| {
-                //let server = &vms["server1"][0].private_ip;
-                //let command = format!("ping {}", server);
+            .run(|vms: HashMap<String, Vec<Machine>>| {
+                println!("server private ip: {}", vms["server"][0].private_ip);
+                println!("client private ip: {}", vms["client"][0].private_ip);
+                let server = &vms["server"][0].private_ip;
+                let command = format!("ping {}", server);
 
-                //vms["client"].for_each_parallel(|client| client.exec(&command));
+                for client in &vms["client"] {
+                    if let Ok(result) = client.run(&command) {
+                        println!("{}", result);
+                    }
+                }
                 Ok(())
             })
             .await;

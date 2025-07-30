@@ -1,6 +1,10 @@
 use rusoto_ec2::Ec2;
 use ssh2::Session;
-use std::{collections::HashMap, io::Read, net::TcpStream};
+use std::{
+    collections::HashMap,
+    io::{self, Read},
+    net::TcpStream,
+};
 
 mod ssh;
 
@@ -54,9 +58,9 @@ impl BurstBuilder {
         self.max_duration_time = hour as i64 * 60;
     }
 
-    pub async fn run<F>(&mut self, script: F)
+    pub async fn run<F>(&mut self, mut script: F)
     where
-        F: FnMut(std::collections::HashMap<String, &[Machine]>) -> std::io::Result<()>,
+        F: FnMut(std::collections::HashMap<String, Vec<Machine>>) -> std::io::Result<()>,
     {
         //use rusoto_core::Region;
         //use rusoto_credential::DefaultCredentialsProvider;
@@ -173,6 +177,8 @@ impl BurstBuilder {
         for (name, machines) in &mut machines {
             let descriptor = &self.descriptors[name];
             let setup = &descriptor.0.setup;
+            //TODO
+            //Setup the machines in parallel (rayon)
             for machine in machines {
                 loop {
                     println!("try to run the setup script on {}", machine.public_dns);
@@ -203,10 +209,13 @@ impl BurstBuilder {
         //   - once the instances are ready , run the setup closures :MachineSetup.setup
         // 3. make sure all setups are done and step 2 is done completly
         //
+        // 4. Run the script closure
+
+        script(machines).unwrap();
+
         //
         //
-        //
-        // 4. terminate all instances
+        // 5. terminate all instances
 
         let mut terminate_req = rusoto_ec2::TerminateInstancesRequest::default();
         terminate_req.instance_ids = instance_ids;
@@ -221,4 +230,14 @@ pub struct Machine {
     instance_type: String,
     pub private_ip: String,
     pub public_dns: String,
+}
+
+impl Machine {
+    pub fn run(&self, command: &str) -> Result<String, io::Error> {
+        if let Some(ssh) = &self.ssh {
+            return ssh.cmd(command);
+        }
+
+        Ok(String::new())
+    }
 }
