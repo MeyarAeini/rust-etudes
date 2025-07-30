@@ -1,0 +1,12 @@
+[package]
+name = "burst"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+rusoto = "0.24.2"
+rusoto_core = "0.48.0"
+rusoto_credential = "0.48.0"
+rusoto_ec2 = "0.48.0"
+ssh2 = "0.9.5"
+tokio = "1.47.0"
