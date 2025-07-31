@@ -31,16 +31,17 @@ fn main() {
             .run(|vms: HashMap<String, Vec<Machine>>| {
                 println!("server private ip: {}", vms["server"][0].private_ip);
                 println!("client private ip: {}", vms["client"][0].private_ip);
-                let server = &vms["server"][0].private_ip;
-                let command = format!("ping {}", server);
+               // let server = &vms["server"][0].private_ip;
+               // let command = format!("ping {}", server);
 
-                for client in &vms["client"] {
-                    if let Ok(result) = client.run(&command) {
-                        println!("{}", result);
-                    }
-                }
+               // for client in &vms["client"] {
+               //     if let Ok(result) = client.run(&command) {
+               //         println!("{}", result);
+               //     }
+               // }
                 Ok(())
             })
-            .await;
+            .await
+            .unwrap();
     });
 }

@@ -5,3 +5,5 @@
 - cargo infrastructure (Travis, cargo.toml meta)
 - documentation
 - nicer SSH interface
+- set up security group and new key for the cluster
+- construct VPC for the cluster
