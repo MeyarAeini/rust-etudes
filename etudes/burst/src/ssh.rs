@@ -1,4 +1,4 @@
-use failure;
+use failure::{self, ResultExt};
 use ssh2;
 use std::net::{self, TcpStream};
 
@@ -7,7 +7,10 @@ pub struct Session {
 }
 
 impl Session {
-    pub(crate) fn connect<A: net::ToSocketAddrs>(addr: A) -> Result<Self, failure::Error> {
+    pub(crate) fn connect<A: net::ToSocketAddrs>(
+        addr: A,
+        private_key_path: &Path,
+    ) -> Result<Self, failure::Error> {
         let mut retries = 0;
         let tcp = loop {
             match TcpStream::connect(&addr) {
@@ -22,20 +25,16 @@ impl Session {
             }
         };
 
-        let mut session = ssh2::Session::new()
-            .map_err(failure::Error::from)
-            .map_err(|e| e.context("Failed to initilize a new ssh session"))?;
+        let mut session = ssh2::Session::new().context("Failed to initilize a new ssh session")?;
         session.set_tcp_stream(tcp);
         session
             .handshake()
-            .map_err(failure::Error::from)
-            .map_err(|e| e.context("Failed to perform handshake on ssh session"))?;
+            .context("Failed to perform handshake on ssh session")?;
 
-        let private_key_path = Path::new("/home/meyar/.ssh/bonjour.pem");
+        //let private_key_path = Path::new("/home/meyar/.ssh/bonjour.pem");
         session
-            .userauth_pubkey_file("ec2-user", None, &private_key_path, None)
-            .map_err(failure::Error::from)
-            .map_err(|e| e.context("Failed to authenticate the ssh"))?;
+            .userauth_pubkey_file("ec2-user", None, private_key_path, None)
+            .context("Failed to authenticate the ssh")?;
 
         Ok(Self { ssh: session })
     }
@@ -54,23 +53,16 @@ impl Session {
             })?;
         channel
             .exec(command)
-            .map_err(failure::Error::from)
-            .map_err(|e| e.context(format!("failed to execute the command `{}`", command)))?;
+            .context(format!("failed to execute the command `{}`", command))?;
 
         let mut s = String::new();
         channel
             .read_to_string(&mut s)
-            .map_err(failure::Error::from)
-            .map_err(|e| e.context(format!("failed to read the `{}` command result", command)))?;
-        channel
-            .wait_close()
-            .map_err(failure::Error::from)
-            .map_err(|e| {
-                e.context(format!(
-                    "failed to close the channel for `{}` command",
-                    command
-                ))
-            })?;
+            .context(format!("failed to read the `{}` command result", command))?;
+        channel.wait_close().context(format!(
+            "failed to close the channel for `{}` command",
+            command
+        ))?;
 
         //TODO: ensure the channel exit status
         Ok(s)

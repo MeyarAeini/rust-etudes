@@ -1,9 +1,13 @@
+use failure::Fail;
+use failure::ResultExt;
 use rusoto_ec2::Ec2;
-use std::collections::HashMap;
+use std::path::Path;
+use std::{collections::HashMap, fmt::format};
 
 mod ssh;
 
-#[macro_use(defer)] extern crate scopeguard;
+#[macro_use(defer)]
+extern crate scopeguard;
 extern crate failure;
 extern crate rusoto;
 extern crate rusoto_core;
@@ -61,6 +65,17 @@ impl BurstBuilder {
         self.max_duration_time = hour as i64 * 60;
     }
 
+    fn rand_string(len: usize) -> String {
+        use rand::{Rng, distr::Alphabetic};
+
+        let mut rng = rand::rng();
+        (&mut rng)
+            .sample_iter(Alphabetic)
+            .take(len)
+            .map(char::from)
+            .collect()
+    }
+
     pub async fn run<F>(&mut self, mut script: F) -> Result<(), failure::Error>
     where
         F: FnMut(std::collections::HashMap<String, Vec<Machine>>) -> Result<(), failure::Error>,
@@ -70,6 +85,79 @@ impl BurstBuilder {
         //The client will use the default credentials provider and tls client.
         let ec2 = rusoto_ec2::Ec2Client::new(rusoto_core::Region::UsEast1);
 
+        //Create a security group
+        let security_group_name = format!("burst_sg_{}", Self::rand_string(10));
+        let sg_req = rusoto_ec2::CreateSecurityGroupRequest {
+            group_name: security_group_name,
+            description: "Security group for burst".to_string(),
+            ..Default::default()
+        };
+        let group_id = ec2
+            .create_security_group(sg_req)
+            .await
+            .context("failed to create security group")?
+            .group_id
+            .expect("aws creates security group always with an id");
+
+        let ssh_permission = rusoto_ec2::IpPermission {
+            from_port: Some(22),
+            to_port: Some(22),
+            ip_protocol: Some("tcp".to_string()),
+            ip_ranges: Some(vec![rusoto_ec2::IpRange {
+                cidr_ip: Some("0.0.0.0/0".to_string()),
+                ..Default::default()
+            }]),
+            ..Default::default()
+        };
+
+        let tcp_cross_permission = rusoto_ec2::IpPermission {
+            from_port: Some(0),
+            to_port: Some(65535),
+            ip_protocol: Some("tcp".to_string()),
+            ip_ranges: Some(vec![rusoto_ec2::IpRange {
+                cidr_ip: Some("172.31.0.0/16".to_string()),
+                ..Default::default()
+            }]),
+            ..Default::default()
+        };
+
+        let sg_inbound_rule_req = rusoto_ec2::AuthorizeSecurityGroupIngressRequest {
+            group_id: Some(group_id.clone()),
+            ip_permissions: Some(vec![ssh_permission, tcp_cross_permission]),
+            ..Default::default()
+        };
+
+        let _ = ec2
+            .authorize_security_group_ingress(sg_inbound_rule_req)
+            .await
+            .context("Failed to setup security group permissions")?;
+
+        //Create key pairs for ssh
+        let key_name = format!("burst_{}", Self::rand_string(6));
+
+        let key_pair_req = rusoto_ec2::CreateKeyPairRequest {
+            key_name: key_name.clone(),
+            ..Default::default()
+        };
+
+        let key_pair = ec2
+            .create_key_pair(key_pair_req)
+            .await
+            .context("failed to generate the ec2 key-pairs")?;
+
+        let key_pair_file =
+            tempfile::NamedTempFile::new().context("failed to create a temp file")?;
+        std::fs::write(
+            key_pair_file.path(),
+            key_pair
+                .key_material
+                .expect("the aws key-pair creation was successfull, so this should have value."),
+        )
+        .context(format!(
+            "failed to store the key-pair private key file : {}",
+            key_pair_file.path().to_str().unwrap()
+        ))?;
+
         // 1. issue spot requests
         let mut id_to_name = HashMap::new();
         let mut spot_instance_request_ids = Vec::new();
@@ -77,8 +165,8 @@ impl BurstBuilder {
             let launch = rusoto_ec2::RequestSpotLaunchSpecification {
                 image_id: Some(setup.ami.clone()),
                 instance_type: Some(setup.instance_type.clone()),
-                security_groups: Some(vec!["bonjour".to_string()]),
-                key_name: Some("bonjour".to_string()),
+                security_group_ids: Some(vec![group_id.clone()]),
+                key_name: Some(key_name.clone()),
                 ..Default::default()
             };
 
@@ -196,6 +284,7 @@ impl BurstBuilder {
                             instance_type: Some(instance_type),
                             public_dns_name: Some(public_dns),
                             private_ip_address: Some(private_ip),
+                            public_ip_address: Some(public_ip),
                             ..
                         } => {
                             let name = id_to_name[&instance_id].clone();
@@ -204,6 +293,7 @@ impl BurstBuilder {
                                 private_ip,
                                 public_dns,
                                 instance_type,
+                                public_ip,
                             });
                         }
                         _ => {
@@ -218,23 +308,23 @@ impl BurstBuilder {
             }
         }
 
-       // defer!{{
-       //      let mut terminate_req = rusoto_ec2::TerminateInstancesRequest::default();
-       // terminate_req.instance_ids = instance_ids;
-       // tokio::task::spawn(async{
-       // while let Err(e) = ec2.terminate_instances(terminate_req.clone()).await {
-       //     let msg = format!("{}", e);
-       //     if msg.contains("Pooled stream disconnected") || msg.contains("broken pip") {
-       //         continue;
-       //     } else {
-       //         return Err::<(),failure::Error>(failure::Error::from(e)
-       //             .context("failed to terminate instances")
-       //             .into());
-       //     }
-       // }
-       // Ok(())});
+        // defer!{{
+        //      let mut terminate_req = rusoto_ec2::TerminateInstancesRequest::default();
+        // terminate_req.instance_ids = instance_ids;
+        // tokio::task::spawn(async{
+        // while let Err(e) = ec2.terminate_instances(terminate_req.clone()).await {
+        //     let msg = format!("{}", e);
+        //     if msg.contains("Pooled stream disconnected") || msg.contains("broken pip") {
+        //         continue;
+        //     } else {
+        //         return Err::<(),failure::Error>(failure::Error::from(e)
+        //             .context("failed to terminate instances")
+        //             .into());
+        //     }
+        // }
+        // Ok(())});
 
-       // }}
+        // }}
 
         //TODO: ensure the number of machines are the same as been requested
 
@@ -245,14 +335,17 @@ impl BurstBuilder {
                 //TODO
                 //Setup the machines in parallel (rayon)
                 for machine in machines {
-                    let ssh = ssh::Session::connect(format!("{}:22", machine.public_dns))
-                        .map_err(failure::Error::from)
-                        .map_err(|e| {
-                            e.context(format!(
-                                "the ssh connection failed for {} to {}",
-                                name, machine.public_dns
-                            ))
-                        })?;
+                    let ssh = ssh::Session::connect(
+                        format!("{}:22", machine.public_ip),
+                        key_pair_file.path(),
+                    )
+                    .map_err(failure::Error::from)
+                    .map_err(|e| {
+                        e.context(format!(
+                            "the ssh connection failed for {} to {}",
+                            name, machine.public_dns
+                        ))
+                    })?;
                     machine.ssh = Some(ssh);
                     setup(machine.ssh.as_mut().expect("the ssh has value"))
                         .map_err(failure::Error::from)
@@ -303,6 +396,7 @@ pub struct Machine {
     instance_type: String,
     pub private_ip: String,
     pub public_dns: String,
+    pub public_ip: String,
 }
 
 impl Machine {
