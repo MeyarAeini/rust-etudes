@@ -386,6 +386,23 @@ impl BurstBuilder {
             }
         }
 
+        //Clean up security group and key-pairs
+        let req = rusoto_ec2::DeleteSecurityGroupRequest {
+            group_id: Some(group_id),
+            ..Default::default()
+        };
+
+        ec2.delete_security_group(req)
+            .await
+            .context("failed to remove the security group")?;
+
+        let req = rusoto_ec2::DeleteKeyPairRequest {
+            key_name: Some(key_name),
+            ..Default::default()
+        };
+        ec2.delete_key_pair(req)
+            .await
+            .context("failed to remove the key-pair")?;
         Ok(())
     }
 }
