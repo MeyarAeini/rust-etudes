@@ -16,7 +16,7 @@ fn main() {
     );
     builder.add_setup(
         "client".to_string(),
-        1,
+        8,
         MachineSetup::new("t2.micro", "ami-083e865b97bdf1c1b", |ssh| {
             let result = ssh.cmd("date")?;
             println!("date: {}", result);

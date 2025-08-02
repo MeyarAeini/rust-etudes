@@ -3,6 +3,7 @@ use failure::ResultExt;
 use rayon::prelude::*;
 use rusoto_ec2::Ec2;
 use std::path::Path;
+use std::str::FromStr;
 use std::{collections::HashMap, fmt::format};
 
 mod ssh;
@@ -340,17 +341,23 @@ impl BurstBuilder {
                     machines
                         .par_iter_mut()
                         .map(|machine| -> Result<_, failure::Error> {
-                            let ssh = ssh::Session::connect(
-                                format!("{}:22", machine.public_ip),
-                                key_pair_file.path(),
-                            )
-                            .map_err(failure::Error::from)
-                            .map_err(|e| {
-                                e.context(format!(
-                                    "the ssh connection failed for {} to {}",
-                                    name, machine.public_dns
-                                ))
-                            })?;
+                            let addr = {
+                                use std::net::{IpAddr, SocketAddr};
+
+                                SocketAddr::new(
+                                    IpAddr::from_str(&machine.public_ip)
+                                        .context("the machine public ip address is not valid")?,
+                                    22,
+                                )
+                            };
+                            let ssh = ssh::Session::connect(addr, key_pair_file.path())
+                                .map_err(failure::Error::from)
+                                .map_err(|e| {
+                                    e.context(format!(
+                                        "the ssh connection failed for {} to {}",
+                                        name, machine.public_dns
+                                    ))
+                                })?;
                             machine.ssh = Some(ssh);
                             setup(machine.ssh.as_mut().expect("the ssh has value"))
                                 .map_err(failure::Error::from)

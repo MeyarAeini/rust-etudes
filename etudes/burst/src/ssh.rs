@@ -1,24 +1,25 @@
 use failure::{self, ResultExt};
 use ssh2;
-use std::net::{self, TcpStream};
+use std::{
+    net::{SocketAddr, TcpStream},
+    time::{Duration, Instant},
+};
 
 pub struct Session {
     ssh: ssh2::Session,
 }
 
 impl Session {
-    pub(crate) fn connect<A: net::ToSocketAddrs>(
-        addr: A,
+    pub(crate) fn connect(
+        addr: SocketAddr,
         private_key_path: &Path,
     ) -> Result<Self, failure::Error> {
         let mut retries = 0;
+        let start = Instant::now();
         let tcp = loop {
-            match TcpStream::connect(&addr) {
+            match TcpStream::connect_timeout(&addr, Duration::from_secs(3)) {
                 Ok(tcp) => break tcp,
-                Err(_) if retries < 6 => {
-                    std::thread::sleep(std::time::Duration::from_secs(10 * retries + 1));
-                    retries += 1
-                }
+                Err(_) if start.elapsed() <= Duration::from_secs(60) => {}
                 Err(e) => {
                     Err(failure::Error::from(e).context("Failed to stablish tcp connection"))?
                 }
