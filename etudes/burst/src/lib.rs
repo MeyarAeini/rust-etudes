@@ -392,10 +392,22 @@ impl BurstBuilder {
             ..Default::default()
         };
 
-        ec2.delete_security_group(req)
-            .await
-            .context("failed to remove the security group")?;
+        let mut retries = 0;
 
+        loop {
+            match ec2.delete_security_group(req.clone()).await {
+                Ok(_) => break,
+                Err(_) if retries < 5 => {
+                    std::thread::sleep(std::time::Duration::from_secs(10 * retries + 1));
+                    retries += 1;
+                }
+                Err(e) => {
+                    return Err(failure::Error::from(e)
+                        .context("failed to remove the security group")
+                        .into());
+                }
+            }
+        }
         let req = rusoto_ec2::DeleteKeyPairRequest {
             key_name: Some(key_name),
             ..Default::default()
