@@ -1,5 +1,6 @@
 use failure::Fail;
 use failure::ResultExt;
+use rayon::prelude::*;
 use rusoto_ec2::Ec2;
 use std::path::Path;
 use std::{collections::HashMap, fmt::format};
@@ -40,13 +41,13 @@ impl Default for BurstBuilder {
 pub struct MachineSetup {
     instance_type: String,
     ami: String,
-    setup: Box<dyn Fn(&mut ssh::Session) -> Result<(), failure::Error>>,
+    setup: Box<dyn Fn(&mut ssh::Session) -> Result<(), failure::Error> + Sync>,
 }
 
 impl MachineSetup {
     pub fn new<F>(instance_type: &str, ami: &str, setup: F) -> Self
     where
-        F: Fn(&mut ssh::Session) -> Result<(), failure::Error> + 'static,
+        F: Fn(&mut ssh::Session) -> Result<(), failure::Error> + 'static + Sync,
     {
         Self {
             instance_type: instance_type.to_string(),
@@ -328,34 +329,41 @@ impl BurstBuilder {
 
         //TODO: ensure the number of machines are the same as been requested
 
+        let mut errors = Vec::new();
         if all_active {
             for (name, machines) in &mut machines {
                 let descriptor = &self.descriptors[name];
                 let setup = &descriptor.0.setup;
                 //TODO
                 //Setup the machines in parallel (rayon)
-                for machine in machines {
-                    let ssh = ssh::Session::connect(
-                        format!("{}:22", machine.public_ip),
-                        key_pair_file.path(),
-                    )
-                    .map_err(failure::Error::from)
-                    .map_err(|e| {
-                        e.context(format!(
-                            "the ssh connection failed for {} to {}",
-                            name, machine.public_dns
-                        ))
-                    })?;
-                    machine.ssh = Some(ssh);
-                    setup(machine.ssh.as_mut().expect("the ssh has value"))
-                        .map_err(failure::Error::from)
-                        .map_err(|e| {
-                            e.context(format!(
-                                "setup procedure for {} on {} failed",
-                                name, machine.public_dns
-                            ))
-                        })?;
-                }
+                errors.par_extend(
+                    machines
+                        .par_iter_mut()
+                        .map(|machine| -> Result<_, failure::Error> {
+                            let ssh = ssh::Session::connect(
+                                format!("{}:22", machine.public_ip),
+                                key_pair_file.path(),
+                            )
+                            .map_err(failure::Error::from)
+                            .map_err(|e| {
+                                e.context(format!(
+                                    "the ssh connection failed for {} to {}",
+                                    name, machine.public_dns
+                                ))
+                            })?;
+                            machine.ssh = Some(ssh);
+                            setup(machine.ssh.as_mut().expect("the ssh has value"))
+                                .map_err(failure::Error::from)
+                                .map_err(|e| {
+                                    e.context(format!(
+                                        "setup procedure for {} on {} failed",
+                                        name, machine.public_dns
+                                    ))
+                                })?;
+                            Ok(())
+                        })
+                        .filter_map(Result::err),
+                );
             }
         }
 
@@ -367,10 +375,11 @@ impl BurstBuilder {
         //
         // 4. Run the script closure
 
-        script(machines)
-            .map_err(failure::Error::from)
-            .map_err(|e| e.context("main procedure failed"))?;
-
+        if errors.is_empty() {
+            script(machines)
+                .map_err(failure::Error::from)
+                .map_err(|e| e.context("main procedure failed"))?;
+        }
         // 5. terminate all instances
 
         let mut terminate_req = rusoto_ec2::TerminateInstancesRequest::default();
@@ -415,7 +424,8 @@ impl BurstBuilder {
         ec2.delete_key_pair(req)
             .await
             .context("failed to remove the key-pair")?;
-        Ok(())
+
+        errors.into_iter().next().map(|e| Err(e)).unwrap_or(Ok(()))
     }
 }
 
