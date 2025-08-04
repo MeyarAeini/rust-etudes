@@ -2,9 +2,16 @@ use failure::Fail;
 use failure::ResultExt;
 use rayon::prelude::*;
 use rusoto_ec2::Ec2;
+use slog::Discard;
+use slog::Logger;
 use std::path::Path;
 use std::str::FromStr;
 use std::{collections::HashMap, fmt::format};
+use tokio::time;
+#[macro_use]
+#[macro_use]
+extern crate slog;
+use slog_term;
 
 mod ssh;
 
@@ -28,6 +35,7 @@ extern crate failure_derive;
 pub struct BurstBuilder {
     descriptors: std::collections::HashMap<String, (MachineSetup, i64)>,
     max_duration_time: i64,
+    logger: Logger,
 }
 
 impl Default for BurstBuilder {
@@ -35,6 +43,7 @@ impl Default for BurstBuilder {
         Self {
             descriptors: Default::default(),
             max_duration_time: 60,
+            logger: Logger::root(Discard, o!()),
         }
     }
 }
@@ -67,6 +76,20 @@ impl BurstBuilder {
         self.max_duration_time = hour as i64 * 60;
     }
 
+    pub fn use_logger(&mut self, logger: Logger) {
+        self.logger = logger;
+    }
+
+    pub fn use_term_logger(&mut self) {
+        use slog::Drain;
+        use std::sync::Mutex;
+
+        let decorator = slog_term::TermDecorator::new().build();
+        let drain = Mutex::new(slog_term::FullFormat::new(decorator).build()).fuse();
+
+        self.logger = Logger::root(drain, o!());
+    }
+
     fn rand_string(len: usize) -> String {
         use rand::{Rng, distr::Alphabetic};
 
@@ -82,13 +105,16 @@ impl BurstBuilder {
     where
         F: FnMut(std::collections::HashMap<String, Vec<Machine>>) -> Result<(), failure::Error>,
     {
+        debug!(self.logger, "connecting to ec2");
         use scopeguard::ScopeGuard;
         //Creates a client backed by the default tokio event loop.
         //The client will use the default credentials provider and tls client.
         let ec2 = rusoto_ec2::Ec2Client::new(rusoto_core::Region::UsEast1);
+        debug!(self.logger, "connected to ec2");
 
         //Create a security group
         let security_group_name = format!("burst_sg_{}", Self::rand_string(10));
+        trace!(self.logger,"Creating a secutiry group";"group_name"=>&security_group_name);
         let sg_req = rusoto_ec2::CreateSecurityGroupRequest {
             group_name: security_group_name,
             description: "Security group for burst".to_string(),
@@ -101,6 +127,9 @@ impl BurstBuilder {
             .group_id
             .expect("aws creates security group always with an id");
 
+        trace!(self.logger, "security group created";"group_id"=>&group_id.clone());
+
+        trace!(self.logger, "adding ip permissions to the security group");
         let ssh_permission = rusoto_ec2::IpPermission {
             from_port: Some(22),
             to_port: Some(22),
@@ -136,7 +165,7 @@ impl BurstBuilder {
 
         //Create key pairs for ssh
         let key_name = format!("burst_{}", Self::rand_string(6));
-
+        trace!(self.logger,"creating a key-pair";"key_name"=>&key_name);
         let key_pair_req = rusoto_ec2::CreateKeyPairRequest {
             key_name: key_name.clone(),
             ..Default::default()
@@ -146,6 +175,8 @@ impl BurstBuilder {
             .create_key_pair(key_pair_req)
             .await
             .context("failed to generate the ec2 key-pairs")?;
+
+        trace!(self.logger,"key-pair generated"; "fingerprint"=>key_pair.key_fingerprint);
 
         let key_pair_file =
             tempfile::NamedTempFile::new().context("failed to create a temp file")?;
@@ -160,9 +191,15 @@ impl BurstBuilder {
             key_pair_file.path().to_str().unwrap()
         ))?;
 
+        trace!(self.logger,"key pair private key stored into disk";"path"=>?key_pair_file.path());
+        //prefixing ? prints the
+        //display version of the
+        //value
+
         // 1. issue spot requests
         let mut id_to_name = HashMap::new();
         let mut spot_instance_request_ids = Vec::new();
+        debug!(self.logger, "issuing the spot requests");
         for (name, (setup, number)) in &self.descriptors {
             let launch = rusoto_ec2::RequestSpotLaunchSpecification {
                 image_id: Some(setup.ami.clone()),
@@ -179,6 +216,7 @@ impl BurstBuilder {
                 //instance_interruption_behavior: Some("stop".to_string()),
                 ..Default::default()
             };
+            trace!(self.logger, "issuing spot request for {}",name; "number"=>number);
             let result = ec2
                 .request_spot_instances(req.clone())
                 .await
@@ -193,11 +231,13 @@ impl BurstBuilder {
                     .into_iter()
                     .filter_map(|it| it.spot_instance_request_id)
                     .map(|it| {
+                        trace!(self.logger,"spot request issued for {}",name; "spot_instance_request_id"=>it.clone());
                         id_to_name.insert(it.clone(), name.clone());
                         it
                     }),
             );
         }
+        debug!(self.logger, "describe the spot requests");
         let mut desc_req = rusoto_ec2::DescribeSpotInstanceRequestsRequest::default();
         desc_req.spot_instance_request_ids = Some(spot_instance_request_ids);
 
@@ -209,13 +249,23 @@ impl BurstBuilder {
                 .map_err(failure::Error::from)
                 .map_err(|e| e.context("failed to describe spot instances for {}"))?;
             let instance_requests = result.spot_instance_requests;
+            trace!(
+                self.logger,
+                "Checking the status of each spot instance request"
+            );
             let any_open = instance_requests
                 .iter()
                 .flatten()
                 .map(|it| (it, it.state.as_ref()))
                 .any(|(sir, state)| {
-                    state.is_some_and(|s| s == "open")
-                        || (state.is_some_and(|s| s == "active") && sir.instance_id.is_none())
+                    if state.is_some_and(|s| s == "open")
+                        || (state.is_some_and(|s| s == "active") && sir.instance_id.is_none()) {
+                            true
+                    }
+                    else {
+                        trace!(self.logger, "spot instance request not yet ready";"state"=>state,"request"=>?sir);
+                        false
+                    }
                 });
             if !any_open {
                 all_active = true;
@@ -243,6 +293,10 @@ impl BurstBuilder {
                     .filter_map(|instance_id| instance_id)
                     .collect();
             } else {
+                trace!(
+                    self.logger,
+                    "some spot instance requets are not ready yet, trying again ..."
+                );
                 use std::{thread, time::Duration};
                 thread::sleep(Duration::from_millis(200));
             }
@@ -290,6 +344,7 @@ impl BurstBuilder {
                             ..
                         } => {
                             let name = id_to_name[&instance_id].clone();
+                            trace!(self.logger, "instance is ready"; "set"=>&name,"ip"=>&public_ip);
                             machines.entry(name).or_insert_with(Vec::new).push(Machine {
                                 ssh: None,
                                 private_ip,
@@ -335,8 +390,6 @@ impl BurstBuilder {
             for (name, machines) in &mut machines {
                 let descriptor = &self.descriptors[name];
                 let setup = &descriptor.0.setup;
-                //TODO
-                //Setup the machines in parallel (rayon)
                 errors.par_extend(
                     machines
                         .par_iter_mut()
@@ -359,6 +412,7 @@ impl BurstBuilder {
                                     ))
                                 })?;
                             machine.ssh = Some(ssh);
+                            debug!(self.logger,"setting up the instance for {}",&name;"ip"=>&machine.public_ip);
                             setup(machine.ssh.as_mut().expect("the ssh has value"))
                                 .map_err(failure::Error::from)
                                 .map_err(|e| {
@@ -367,6 +421,7 @@ impl BurstBuilder {
                                         name, machine.public_dns
                                     ))
                                 })?;
+                            trace!(self.logger,"finish setting up for {}",&name;"ip"=>&machine.public_ip);
                             Ok(())
                         })
                         .filter_map(Result::err),
@@ -374,18 +429,16 @@ impl BurstBuilder {
             }
         }
 
-        //TODO : Create a SecurityGroup in AWS to allow my ip address do ssh, and fill out key_name
-        //and security group of the launch_specification
-
-        //   - once the instances are ready , run the setup closures :MachineSetup.setup
-        // 3. make sure all setups are done and step 2 is done completly
-        //
-        // 4. Run the script closure
-
         if errors.is_empty() {
+            info!(self.logger, "running the burst");
+            let start = time::Instant::now();
             script(machines)
-                .map_err(failure::Error::from)
-                .map_err(|e| e.context("main procedure failed"))?;
+                .context("main procedure failed")
+                .map_err(|e| {
+                    crit!(self.logger,"Error happend during runing the main procedure";"error"=>?e);
+                    e
+                })?;
+            info!(self.logger,"the burst run it finished";"took"=>?start.elapsed());
         }
         // 5. terminate all instances
 
@@ -394,6 +447,7 @@ impl BurstBuilder {
         while let Err(e) = ec2.terminate_instances(terminate_req.clone()).await {
             let msg = format!("{}", e);
             if msg.contains("Pooled stream disconnected") || msg.contains("broken pip") {
+                trace!(self.logger, "retrying the termination instance requests";"message"=>?msg);
                 continue;
             } else {
                 return Err(failure::Error::from(e)
@@ -402,9 +456,11 @@ impl BurstBuilder {
             }
         }
 
+        debug!(self.logger, "cleaning up the security groups and key-pairs");
+
         //Clean up security group and key-pairs
         let req = rusoto_ec2::DeleteSecurityGroupRequest {
-            group_id: Some(group_id),
+            group_id: Some(group_id.clone()),
             ..Default::default()
         };
 
@@ -413,7 +469,8 @@ impl BurstBuilder {
         loop {
             match ec2.delete_security_group(req.clone()).await {
                 Ok(_) => break,
-                Err(_) if retries < 5 => {
+                Err(e) if retries < 5 => {
+                    debug!(self.logger,"deleting the secuity group failed, retrying";"error"=>?e);
                     std::thread::sleep(std::time::Duration::from_secs(10 * retries + 1));
                     retries += 1;
                 }
@@ -424,14 +481,17 @@ impl BurstBuilder {
                 }
             }
         }
+        debug!(self.logger, "deleting the security group finished";"group_id"=>group_id);
         let req = rusoto_ec2::DeleteKeyPairRequest {
-            key_name: Some(key_name),
+            key_name: Some(key_name.clone()),
             ..Default::default()
         };
+        debug!(self.logger, "deleting the key-pair";"key_name"=>&key_name);
         ec2.delete_key_pair(req)
             .await
             .context("failed to remove the key-pair")?;
 
+        info!(self.logger, "burst done!");
         errors.into_iter().next().map(|e| Err(e)).unwrap_or(Ok(()))
     }
 }

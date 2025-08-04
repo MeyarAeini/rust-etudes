@@ -13,6 +13,8 @@ rusoto_core = "0.48.0"
 rusoto_credential = "0.48.0"
 rusoto_ec2 = "0.48.0"
 scopeguard = "1.2.0"
+slog = {version="2.7.0", features=["max_level_trace","release_max_level_debug"]}
+slog-term = "2.9.1"
 ssh2 = "0.9.5"
 tempfile = "3.20.0"
 tokio = "1.47.0"

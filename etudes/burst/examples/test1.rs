@@ -4,6 +4,7 @@ use tokio::runtime::Runtime;
 
 fn main() {
     let mut builder = BurstBuilder::default();
+    builder.use_term_logger();
     builder.add_setup(
         "server".to_string(),
         1,
