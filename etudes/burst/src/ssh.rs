@@ -14,7 +14,6 @@ impl Session {
         addr: SocketAddr,
         private_key_path: &Path,
     ) -> Result<Self, failure::Error> {
-        let mut retries = 0;
         let start = Instant::now();
         let tcp = loop {
             match TcpStream::connect_timeout(&addr, Duration::from_secs(3)) {

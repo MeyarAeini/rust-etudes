@@ -1,37 +1,76 @@
-use failure::Fail;
+//!`Burst` was the very first name which the creator of this crate during the live stream coding
+//!used. Now you can find the original crate by searching for `tsunami` crate. I learned many
+//!things from the creator of this crate , `Jon Gjengset`, and I will leanr many more other things
+//!form him.
+//!
+//!This crate is my coding by following his steps on the original crate. This is only for leaning
+//!purposes.
+//!
+//!```rust, no_run
+//! # use burst::{BurstBuilder, Machine, MachineSetup};
+//! # use std::collections::HashMap;
+//! # use tokio::runtime::Runtime;
+//!
+//! # let mut builder = BurstBuilder::default();
+//! # let rt = Runtime::new().unwrap();
+//! # rt.block_on(
+//! async {
+//!        builder
+//!            .run(|vms: HashMap<String, Vec<Machine>>| {
+//!                println!("server private ip: {}", vms["server"][0].private_ip);
+//!                println!("client private ip: {}", vms["client"][0].private_ip);
+//!
+//!                Ok(())
+//!            })
+//!            .await
+//!            .unwrap();
+//!    }
+//! # );
+#![deny(missing_docs)]
+
 use failure::ResultExt;
 use rayon::prelude::*;
 use rusoto_ec2::Ec2;
 use slog::Discard;
 use slog::Logger;
-use std::path::Path;
+use std::collections::HashMap;
 use std::str::FromStr;
-use std::{collections::HashMap, fmt::format};
 use tokio::time;
-#[macro_use]
 #[macro_use]
 extern crate slog;
 use slog_term;
 
 mod ssh;
 
-#[macro_use(defer)]
-extern crate scopeguard;
 extern crate failure;
+extern crate failure_derive;
 extern crate rusoto;
 extern crate rusoto_core;
 extern crate rusoto_credential;
 extern crate rusoto_ec2;
+extern crate scopeguard;
 extern crate ssh2;
-//#[macro_use]
-extern crate failure_derive;
 
-//#[derive(Debug, Fail)]
-//enum BurstError {
-//}
+/// The top level burst builder, which allows you to configure the environement variables and
+/// machine descriptiors with specifying how many of a set of machine you need. It also allows you
+/// specify the maximum duration that you need the machines for your benchmark. This builder allows
+/// you specify the type of the logger that you need.
+///
+/// ```rust
+///  # use burst::{BurstBuilder, MachineSetup};
+/// let mut builder = BurstBuilder::default();
+/// builder.use_term_logger();
+/// builder.add_setup(
+///     "server".to_string(),
+///     1,
+///     MachineSetup::new("t2.micro", "ami-083e865b97bdf1c1b", |ssh| {
+///         let result = ssh.cmd("cat etc/hostname")?;
+///         println!("ip addr: {}", result);
 
-//struct Burst {}
-
+///         Ok(())
+///     }),
+/// );
+/// ```
 pub struct BurstBuilder {
     descriptors: std::collections::HashMap<String, (MachineSetup, i64)>,
     max_duration_time: i64,
@@ -48,6 +87,11 @@ impl Default for BurstBuilder {
     }
 }
 
+///Allows you define a template of AWS instance type and ami and the setup function to be ran for
+///spawning aws ec2 instances.
+///
+///Note that only instances which are TODO
+///
 pub struct MachineSetup {
     instance_type: String,
     ami: String,
@@ -55,6 +99,16 @@ pub struct MachineSetup {
 }
 
 impl MachineSetup {
+    ///Creates  new AWS spot instance machin setup template
+    ///```rust
+    /// # use burst::MachineSetup;
+    /// MachineSetup::new("t2.micro", "ami-083e865b97bdf1c1b", |ssh| {
+    ///        let result = ssh.cmd("date")?;
+    ///        println!("date: {}", result);
+    ///
+    ///          Ok(())
+    ///   });
+    ///```
     pub fn new<F>(instance_type: &str, ami: &str, setup: F) -> Self
     where
         F: Fn(&mut ssh::Session) -> Result<(), failure::Error> + 'static + Sync,
@@ -68,18 +122,22 @@ impl MachineSetup {
 }
 
 impl BurstBuilder {
+    ///Add a new set of AWS machine setup configuration
     pub fn add_setup(&mut self, name: String, number: i64, setup: MachineSetup) {
         self.descriptors.insert(name, (setup, number));
     }
 
+    ///Set the max duration hour for spawning the aws ec2 spot instances
     pub fn set_max_duration_hour(&mut self, hour: u8) {
         self.max_duration_time = hour as i64 * 60;
     }
 
+    ///Assign a custom logger to the burst builder
     pub fn use_logger(&mut self, logger: Logger) {
         self.logger = logger;
     }
 
+    ///Use the terminal logger as burst builder logger
     pub fn use_term_logger(&mut self) {
         use slog::Drain;
         use std::sync::Mutex;
@@ -101,12 +159,13 @@ impl BurstBuilder {
             .collect()
     }
 
+    ///Run the main burst routine, and return erros in case of any error.
     pub async fn run<F>(&mut self, mut script: F) -> Result<(), failure::Error>
     where
         F: FnMut(std::collections::HashMap<String, Vec<Machine>>) -> Result<(), failure::Error>,
     {
         debug!(self.logger, "connecting to ec2");
-        use scopeguard::ScopeGuard;
+        //use scopeguard::ScopeGuard;
         //Creates a client backed by the default tokio event loop.
         //The client will use the default credentials provider and tls client.
         let ec2 = rusoto_ec2::Ec2Client::new(rusoto_core::Region::UsEast1);
@@ -349,7 +408,7 @@ impl BurstBuilder {
                                 ssh: None,
                                 private_ip,
                                 public_dns,
-                                instance_type,
+                                _instance_type: instance_type,
                                 public_ip,
                             });
                         }
@@ -496,16 +555,22 @@ impl BurstBuilder {
     }
 }
 
+///A handle to access the ec2 instance vlaues or configuations such as public ip, host name or
+///private ip
 //#[derive(Debug)]
 pub struct Machine {
     ssh: Option<ssh::Session>,
-    instance_type: String,
+    _instance_type: String,
+    ///provides the private ip of the ec2 istance.
     pub private_ip: String,
+    ///provides the public host name of the ec2 instance.
     pub public_dns: String,
+    ///provide tge public ip of the ec2 instance
     pub public_ip: String,
 }
 
 impl Machine {
+    ///run a procedure on an ec2 instance machine handler
     pub fn run(&self, command: &str) -> Result<String, failure::Error> {
         if let Some(ssh) = &self.ssh {
             return ssh.cmd(command);
