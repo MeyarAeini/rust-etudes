@@ -1,0 +1,9 @@
+[package]
+name = "async-ssh"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+mio = "1.0.4"
+thrussh = "0.36.1"
+tokio = "1.47.1"
