@@ -1,0 +1,16 @@
+{% extends "layout" %}
+{% block title %}{{ super() }} | {{ title }} {% endblock %}
+{% block body %}
+{% if current_user %}
+<h1>{{ title }}</h1>
+<p>{{ welcome_text }}</p>
+{% else %}
+<form action="/" method="post">
+    <label for="name">
+        <input type="text" name="name">
+    </label>
+
+    <input type="submit" value="I want to vote!">
+</form>
+{% endif %}
+{% endblock %}

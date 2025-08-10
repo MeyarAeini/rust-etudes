@@ -1,0 +1,19 @@
+<!doctype html>
+<html>
+  <head><title>{% block title %}Website Name{% endblock %}</title></head>
+  <body>
+    <nav>
+        <ul>
+            <li><a href="/">Home</a></li>
+            <li>
+                {% if current_user %}
+                    <form action="/logout" method="post"> 
+                        <input type="submit" value="logout"/>
+                    </form>
+                {% endif %}
+            </li>
+        </ul>
+    </nav>
+    {% block body %}{% endblock %}
+  </body>
+</html>
