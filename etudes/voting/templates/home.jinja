@@ -4,6 +4,25 @@
 {% if current_user %}
 <h1>{{ title }}</h1>
 <p>{{ welcome_text }}</p>
+
+<div class="lists">
+  <div>
+    <h3>I like these</h3>
+    <ul id="voteds" class="sortable">
+      <!-- Drag items here -->
+    </ul>
+  </div>
+
+  <div>
+    <h3>None of these</h3>
+        <ul id="protest_votes" class="sortable">
+            {% for option in options %}
+            <li>{{option}}</li>
+            {% endfor %}
+        </ul>
+  </div>
+</div>
+
 {% else %}
 <form action="/" method="post">
     <label for="name">
@@ -13,4 +32,28 @@
     <input type="submit" value="I want to vote!">
 </form>
 {% endif %}
+
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+
+<script>
+  const voteds = document.getElementById('voteds');
+  const protest_votes = document.getElementById('protest_votes');
+
+  Sortable.create(voteds, {
+    group: 'shared',
+    animation: 150,
+    onAdd: function (evt) {
+      // Limit vote list to top 5
+      if (voteds.children.length > 5) {
+        protest_votes.appendChild(voteds.lastChild);
+        alert('You can only vote 5 items!');
+      }
+    }
+  });
+
+  Sortable.create(protest_votes, {
+    group: 'shared',
+    animation: 150
+  });
+</script>
 {% endblock %}

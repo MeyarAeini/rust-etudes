@@ -1,0 +1,36 @@
+body {
+  font-family: Arial, sans-serif;
+  padding: 20px;
+}
+
+.lists {
+  display: flex;
+  gap: 40px;
+}
+
+h3 {
+  margin-bottom: 10px;
+}
+
+ul {
+  list-style: none;
+  padding: 0;
+  min-width: 200px;
+  min-height: 200px;
+  border: 2px dashed #ccc;
+  border-radius: 8px;
+}
+
+li {
+  background: #f9f9f9;
+  margin: 6px;
+  padding: 10px;
+  border-radius: 6px;
+  cursor: grab;
+}
+
+li:active {
+  cursor: grabbing;
+  background: #e0f7fa;
+}
+

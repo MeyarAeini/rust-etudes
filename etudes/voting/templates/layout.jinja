@@ -1,18 +1,16 @@
 <!doctype html>
 <html>
-  <head><title>{% block title %}Website Name{% endblock %}</title></head>
+  <head>
+      <title>{% block title %}Website Name{% endblock %}</title>
+     <link rel="stylesheet" href="static/styles.css">
+  </head>
   <body>
     <nav>
-        <ul>
-            <li><a href="/">Home</a></li>
-            <li>
-                {% if current_user %}
-                    <form action="/logout" method="post"> 
-                        <input type="submit" value="logout"/>
-                    </form>
-                {% endif %}
-            </li>
-        </ul>
+        {% if current_user %}
+        <form action="/logout" method="post"> 
+          <input type="submit" value="logout"/>
+       </form>
+       {% endif %}
     </nav>
     {% block body %}{% endblock %}
   </body>
