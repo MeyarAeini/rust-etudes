@@ -18,6 +18,10 @@ pub fn establish_connection() -> SqliteConnection {
 }
 
 pub fn create_user(conn: &mut SqliteConnection, name: &str) -> User {
+    if let Some(user) = get_user(conn, name) {
+        return user;
+    }
+
     let new_user = NewUser { name };
 
     use crate::schema::users;
@@ -36,4 +40,18 @@ pub fn get_options(conn: &mut SqliteConnection) -> Vec<crate::models::Option> {
         .select(crate::models::Option::as_select())
         .load(conn)
         .expect("error loading options")
+}
+
+pub fn get_user(conn: &mut SqliteConnection, username: &str) -> Option<User> {
+    use crate::schema::users::dsl::*;
+
+    if let Ok(result) = users
+        .filter(crate::schema::users::dsl::name.eq(username))
+        .select(crate::models::User::as_select())
+        .first(conn)
+    {
+        Some(result)
+    } else {
+        None
+    }
 }

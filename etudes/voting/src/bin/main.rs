@@ -1,12 +1,12 @@
 use axum::{
-    Router,
+    Json, Router,
     extract::{Form, State},
     http::StatusCode,
     response::{Html, IntoResponse, Redirect},
     routing::{get, post},
 };
 use minijinja::{Environment, context};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tower_cookies::{Cookie, CookieManagerLayer, Cookies};
 use tower_http::services::ServeDir;
@@ -31,6 +31,7 @@ async fn main() {
     let app = Router::new()
         .route("/", get(home).post(wants_to_vote))
         .route("/logout", post(logout))
+        .route("/submit-votes", post(submit_votes))
         .layer(CookieManagerLayer::new())
         .nest_service("/static", ServeDir::new("static"))
         .with_state(state);
@@ -42,6 +43,11 @@ struct AppState {
     env: Environment<'static>,
 }
 
+#[derive(Serialize)]
+struct OptionModel {
+    pub id: i32,
+    pub name: String,
+}
 async fn home(
     cookies: Cookies,
     State(state): State<Arc<AppState>>,
@@ -56,7 +62,10 @@ async fn home(
 
     let options: Vec<_> = get_options(&mut conn)
         .iter()
-        .map(|option| option.name.clone())
+        .map(|option| OptionModel {
+            name: option.name.clone(),
+            id: option.id,
+        })
         .collect(); //["name1", "name2", "name3", "name4", "name5"];
 
     let rendered = html
@@ -77,6 +86,8 @@ struct User {
 }
 async fn wants_to_vote(cookies: Cookies, Form(user): Form<User>) -> impl IntoResponse {
     if !user.name.is_empty() {
+        let mut conn = establish_connection();
+        create_user(&mut conn, &user.name);
         cookies.add(Cookie::new("username", user.name));
     }
 
@@ -87,4 +98,19 @@ async fn logout(cookies: Cookies) -> impl IntoResponse {
     cookies.remove(Cookie::new("username", ""));
 
     Redirect::to("/")
+}
+
+#[derive(Deserialize, Debug)]
+struct UserVote {
+    id: i32,
+    order: i32,
+}
+
+async fn submit_votes(cookies: Cookies, Json(votes): Json<Vec<UserVote>>) {
+    let current_user = cookies
+        .get("username")
+        .map(|cookie| cookie.value().to_owned())
+        .unwrap_or(String::new());
+
+    println!("user {} submited votes {:?}", current_user, votes);
 }

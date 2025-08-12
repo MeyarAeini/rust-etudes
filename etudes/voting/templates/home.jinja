@@ -17,11 +17,12 @@
     <h3>None of these</h3>
         <ul id="protest_votes" class="sortable">
             {% for option in options %}
-            <li>{{option}}</li>
+            <li id="{{option.id}}">{{option.name}}</li>
             {% endfor %}
         </ul>
   </div>
 </div>
+<button id="post-my-votes"> Vote </button>
 
 {% else %}
 <form action="/" method="post">
@@ -54,6 +55,22 @@
   Sortable.create(protest_votes, {
     group: 'shared',
     animation: 150
+  })
+  document.getElementById('post-my-votes').addEventListener('click', function() {
+      const items = document.querySelectorAll('#voteds li');
+      console.log(items);
+      const votes = Array.from(items).map((item,index) => ({
+          id:Number(item.id),
+          order: index+1,
+      }));
+      console.log(votes);
+
+      fetch('/submit-votes', {
+          method:'Post',
+          headers: {'Content-Type':'application/json'},
+         body: JSON.stringify(votes)
+      });
+
   });
 </script>
 {% endblock %}
