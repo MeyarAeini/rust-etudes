@@ -58,7 +58,6 @@ pub fn get_user(conn: &mut SqliteConnection, username: &str) -> Option<User> {
         None
     }
 }
-<<<<<<< HEAD
 
 pub fn save_votes(conn: &mut SqliteConnection, username: &str, ordered_choises: Vec<i32>) {
     use crate::schema::votes;
@@ -84,5 +83,3 @@ pub fn save_votes(conn: &mut SqliteConnection, username: &str, ordered_choises: 
         }
     }
 }
-=======
->>>>>>> d476f1caed503fdcf071dc1c94ce6282995189c2

@@ -58,18 +58,10 @@
   })
   document.getElementById('post-my-votes').addEventListener('click', function() {
       const items = document.querySelectorAll('#voteds li');
-<<<<<<< HEAD
-=======
-      console.log(items);
->>>>>>> d476f1caed503fdcf071dc1c94ce6282995189c2
       const votes = Array.from(items).map((item,index) => ({
           id:Number(item.id),
           order: index+1,
       }));
-<<<<<<< HEAD
-=======
-      console.log(votes);
->>>>>>> d476f1caed503fdcf071dc1c94ce6282995189c2
 
       fetch('/submit-votes', {
           method:'Post',
