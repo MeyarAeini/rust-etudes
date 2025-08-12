@@ -10,6 +10,7 @@ use serde::Deserialize;
 use std::sync::Arc;
 use tower_cookies::{Cookie, CookieManagerLayer, Cookies};
 use tower_http::services::ServeDir;
+use voting::*;
 
 #[tokio::main]
 async fn main() {
@@ -20,12 +21,12 @@ async fn main() {
     println!("listening to {}", listener.local_addr().unwrap());
 
     let mut env = Environment::new();
-    env.add_template("layout", include_str!("../templates/layout.jinja"))
+    env.add_template("layout", include_str!("../../templates/layout.jinja"))
         .unwrap();
-    env.add_template("home", include_str!("../templates/home.jinja"))
+    env.add_template("home", include_str!("../../templates/home.jinja"))
         .unwrap();
 
-    let state = std::sync::Arc::new(AppState(env));
+    let state = std::sync::Arc::new(AppState { env });
 
     let app = Router::new()
         .route("/", get(home).post(wants_to_vote))
@@ -37,19 +38,26 @@ async fn main() {
     axum::serve(listener, app).await.unwrap();
 }
 
-struct AppState(Environment<'static>);
+struct AppState {
+    env: Environment<'static>,
+}
 
 async fn home(
     cookies: Cookies,
     State(state): State<Arc<AppState>>,
 ) -> Result<Html<String>, StatusCode> {
-    let html = state.0.get_template("home").unwrap();
+    let html = state.env.get_template("home").unwrap();
 
     let current_user = cookies
         .get("username")
         .map(|cookie| cookie.value().to_owned());
 
-    let options = vec!["name1", "name2", "name3", "name4", "name5"];
+    let mut conn = establish_connection();
+
+    let options: Vec<_> = get_options(&mut conn)
+        .iter()
+        .map(|option| option.name.clone())
+        .collect(); //["name1", "name2", "name3", "name4", "name5"];
 
     let rendered = html
         .render(context! {
