@@ -58,12 +58,10 @@
   })
   document.getElementById('post-my-votes').addEventListener('click', function() {
       const items = document.querySelectorAll('#voteds li');
-      console.log(items);
       const votes = Array.from(items).map((item,index) => ({
           id:Number(item.id),
           order: index+1,
       }));
-      console.log(votes);
 
       fetch('/submit-votes', {
           method:'Post',

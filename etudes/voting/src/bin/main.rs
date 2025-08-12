@@ -111,6 +111,9 @@ async fn submit_votes(cookies: Cookies, Json(votes): Json<Vec<UserVote>>) {
         .get("username")
         .map(|cookie| cookie.value().to_owned())
         .unwrap_or(String::new());
-
-    println!("user {} submited votes {:?}", current_user, votes);
+    let mut conn = establish_connection();
+    let mut votes = votes;
+    votes.sort_by_key(|v| v.order);
+    let ordered_votes = votes.iter().map(|v| v.id).collect();
+    save_votes(&mut conn, &current_user, ordered_votes);
 }

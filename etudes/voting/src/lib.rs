@@ -5,7 +5,10 @@ use diesel::prelude::*;
 use dotenv::dotenv;
 use std::env;
 
-use crate::models::{NewUser, User};
+use crate::{
+    models::{NewUser, User, Vote},
+    schema::votes::{option_id, ordinal, user_id},
+};
 
 pub fn establish_connection() -> SqliteConnection {
     dotenv().ok();
@@ -53,5 +56,30 @@ pub fn get_user(conn: &mut SqliteConnection, username: &str) -> Option<User> {
         Some(result)
     } else {
         None
+    }
+}
+
+pub fn save_votes(conn: &mut SqliteConnection, username: &str, ordered_choises: Vec<i32>) {
+    use crate::schema::votes;
+
+    if let Some(user) = get_user(conn, username) {
+        if let Ok(_) = diesel::delete(votes::table)
+            .filter(user_id.eq(user.id))
+            .execute(conn)
+        {
+            for (index, item) in ordered_choises.iter().enumerate() {
+                diesel::insert_into(votes::table)
+                    .values((
+                        user_id.eq(user.id),
+                        option_id.eq(item),
+                        ordinal.eq(index as i32 + 1),
+                    ))
+                    .on_conflict((user_id, option_id))
+                    .do_update()
+                    .set(ordinal.eq(index as i32 + 1))
+                    .execute(conn)
+                    .expect("error on saving a new vote");
+            }
+        }
     }
 }
