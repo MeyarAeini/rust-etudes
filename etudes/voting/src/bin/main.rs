@@ -1,9 +1,13 @@
 use axum::{
+<<<<<<< HEAD
     Json, Router,
     extract::{Form, State},
     http::StatusCode,
     response::{Html, IntoResponse, Redirect},
     routing::{get, post},
+=======
+    extract::{Form, State}, http::StatusCode, response::{Html, IntoResponse, Redirect}, routing::{get, post}, Json, Router
+>>>>>>> d476f1caed503fdcf071dc1c94ce6282995189c2
 };
 use minijinja::{Environment, context};
 use serde::{Deserialize, Serialize};
@@ -44,9 +48,15 @@ struct AppState {
 }
 
 #[derive(Serialize)]
+<<<<<<< HEAD
 struct OptionModel {
     pub id: i32,
     pub name: String,
+=======
+struct OptionModel{
+    pub id: i32,
+    pub name:String,
+>>>>>>> d476f1caed503fdcf071dc1c94ce6282995189c2
 }
 async fn home(
     cookies: Cookies,
@@ -62,10 +72,14 @@ async fn home(
 
     let options: Vec<_> = get_options(&mut conn)
         .iter()
+<<<<<<< HEAD
         .map(|option| OptionModel {
             name: option.name.clone(),
             id: option.id,
         })
+=======
+        .map(|option| OptionModel{name:option.name.clone(),id:option.id})
+>>>>>>> d476f1caed503fdcf071dc1c94ce6282995189c2
         .collect(); //["name1", "name2", "name3", "name4", "name5"];
 
     let rendered = html
@@ -100,6 +114,7 @@ async fn logout(cookies: Cookies) -> impl IntoResponse {
     Redirect::to("/")
 }
 
+<<<<<<< HEAD
 #[derive(Deserialize, Debug)]
 struct UserVote {
     id: i32,
@@ -116,4 +131,18 @@ async fn submit_votes(cookies: Cookies, Json(votes): Json<Vec<UserVote>>) {
     votes.sort_by_key(|v| v.order);
     let ordered_votes = votes.iter().map(|v| v.id).collect();
     save_votes(&mut conn, &current_user, ordered_votes);
+=======
+#[derive(Deserialize,Debug)]
+struct UserVote {
+    id:i32,
+    order:i32,
+}
+
+async fn submit_votes(cookies: Cookies,Json(votes) : Json<Vec<UserVote>>) {
+    let current_user = cookies
+        .get("username")
+        .map(|cookie| cookie.value().to_owned()).unwrap_or(String::new());
+
+    println!("user {} submited votes {:?}",current_user,votes);
+>>>>>>> d476f1caed503fdcf071dc1c94ce6282995189c2
 }
