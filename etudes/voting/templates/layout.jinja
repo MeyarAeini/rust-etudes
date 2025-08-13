@@ -6,6 +6,10 @@
   </head>
   <body>
     <nav>
+        <ul>
+            <li><a href="/">Home</a></li>
+            <li><a href="/election">Election</a></li>
+        </ul>
         {% if current_user %}
         <form action="/logout" method="post"> 
           <input type="submit" value="logout"/>

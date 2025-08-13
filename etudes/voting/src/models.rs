@@ -17,7 +17,7 @@ pub struct Option {
     pub description: String,
 }
 
-#[derive(Queryable, Selectable, Insertable)]
+#[derive(Queryable, Selectable, Insertable, Clone)]
 #[diesel(table_name=crate::schema::votes)]
 #[diesel(check_for_backend(diesel::sqlite::Sqlite))]
 pub struct Vote {

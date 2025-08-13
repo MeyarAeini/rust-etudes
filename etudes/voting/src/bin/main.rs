@@ -26,11 +26,15 @@ async fn main() {
     env.add_template("home", include_str!("../../templates/home.jinja"))
         .unwrap();
 
+    env.add_template("election", include_str!("../../templates/election.jinja"))
+        .unwrap();
+
     let state = std::sync::Arc::new(AppState { env });
 
     let app = Router::new()
         .route("/", get(home).post(wants_to_vote))
         .route("/logout", post(logout))
+        .route("/election", get(election))
         .route("/submit-votes", post(submit_votes))
         .layer(CookieManagerLayer::new())
         .nest_service("/static", ServeDir::new("static"))
@@ -74,6 +78,19 @@ async fn home(
         title=>"home",
         welcome_text=>format!("hello {}",current_user.unwrap_or(String::new())),
         options=>options
+            })
+        .unwrap();
+
+    Ok(Html(rendered))
+}
+
+async fn election(State(state): State<Arc<AppState>>) -> Result<Html<String>, StatusCode> {
+    let html = state.env.get_template("election").unwrap();
+    let election_result = run_election();
+    let rendered = html
+        .render(context! {
+        title=>"election result",
+        election_result=>election_result
             })
         .unwrap();
 
