@@ -86,7 +86,7 @@ pub fn save_votes(conn: &mut SqliteConnection, username: &str, ordered_choises: 
 
 pub fn run_election() -> Vec<ElectionResult> {
     use itertools::Itertools;
-    use rcir::{ElectionResult, MajorityMode, run_election};
+    use rcir::{run_election, ElectionResult, MajorityMode};
 
     let mut conn = establish_connection();
 
@@ -141,7 +141,7 @@ pub fn run_election() -> Vec<ElectionResult> {
         .map(|o| (o.id, o))
         .collect();
 
-    winners
+    let mut result: Vec<crate::ElectionResult> = winners
         .into_iter()
         .map(|(w, rank)| {
             let option = options.remove(&w).unwrap();
@@ -152,7 +152,11 @@ pub fn run_election() -> Vec<ElectionResult> {
                 rank,
             }
         })
-        .collect()
+        .collect();
+
+    result.sort_by_key(|r| r.rank);
+
+    result
 }
 
 use serde::Serialize;
