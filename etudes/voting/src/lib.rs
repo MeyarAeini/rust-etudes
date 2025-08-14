@@ -35,14 +35,26 @@ pub fn create_user(conn: &mut SqliteConnection, name: &str) -> User {
         .get_result(conn)
         .expect("save new user")
 }
-
-pub fn get_options(conn: &mut SqliteConnection) -> Vec<crate::models::Option> {
+#[derive(Serialize)]
+pub struct OptionModel {
+    pub id: i32,
+    pub name: String,
+    pub description: String,
+}
+pub fn get_options(conn: &mut SqliteConnection) -> Vec<OptionModel> {
     use crate::schema::options::dsl::*;
 
     options
         .select(crate::models::Option::as_select())
         .load(conn)
         .expect("error loading options")
+        .into_iter()
+        .map(|option| OptionModel {
+            id: option.id,
+            name: option.name,
+            description: option.description,
+        })
+        .collect()
 }
 
 pub fn get_user(conn: &mut SqliteConnection, username: &str) -> Option<User> {
@@ -57,6 +69,28 @@ pub fn get_user(conn: &mut SqliteConnection, username: &str) -> Option<User> {
     } else {
         None
     }
+}
+
+pub fn get_user_options(conn: &mut SqliteConnection, username: &str) -> Vec<OptionModel> {
+    use crate::schema::options;
+    use crate::schema::users;
+    use crate::schema::votes;
+
+    options::table
+        .inner_join(votes::table.on(votes::option_id.eq(options::id)))
+        .inner_join(users::table.on(users::id.eq(votes::user_id)))
+        .filter(users::name.eq_all(username))
+        .order(votes::ordinal.asc())
+        .select(crate::models::Option::as_select())
+        .load(conn)
+        .expect("error loading the options join by votes")
+        .into_iter()
+        .map(|option| OptionModel {
+            id: option.id,
+            name: option.name,
+            description: option.description,
+        })
+        .collect()
 }
 
 pub fn save_votes(conn: &mut SqliteConnection, username: &str, ordered_choises: Vec<i32>) {
@@ -86,7 +120,7 @@ pub fn save_votes(conn: &mut SqliteConnection, username: &str, ordered_choises: 
 
 pub fn run_election() -> Vec<ElectionResult> {
     use itertools::Itertools;
-    use rcir::{run_election, ElectionResult, MajorityMode};
+    use rcir::{ElectionResult, MajorityMode, run_election};
 
     let mut conn = establish_connection();
 

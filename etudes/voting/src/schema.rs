@@ -20,3 +20,9 @@ votes(user_id,option_id,ordinal){
     ordinal -> Integer,
 }
 }
+
+diesel::joinable!(votes -> options (option_id));
+diesel::joinable!(votes -> users (user_id));
+diesel::allow_tables_to_appear_in_same_query!(options, votes);
+diesel::allow_tables_to_appear_in_same_query!(users, votes);
+diesel::allow_tables_to_appear_in_same_query!(users, options);

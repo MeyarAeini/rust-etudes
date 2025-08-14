@@ -6,8 +6,8 @@ use axum::{
     routing::{get, post},
 };
 use minijinja::{Environment, context};
-use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+use serde::Deserialize;
+use std::{collections::HashSet, sync::Arc};
 use tower_cookies::{Cookie, CookieManagerLayer, Cookies};
 use tower_http::services::ServeDir;
 use voting::*;
@@ -47,11 +47,6 @@ struct AppState {
     env: Environment<'static>,
 }
 
-#[derive(Serialize)]
-struct OptionModel {
-    pub id: i32,
-    pub name: String,
-}
 async fn home(
     cookies: Cookies,
     State(state): State<Arc<AppState>>,
@@ -61,23 +56,25 @@ async fn home(
     let current_user = cookies
         .get("username")
         .map(|cookie| cookie.value().to_owned());
+    let mut has_user = true;
+    let username = current_user.unwrap_or_else(|| {
+        has_user = false;
+        String::new()
+    });
 
     let mut conn = establish_connection();
 
-    let options: Vec<_> = get_options(&mut conn)
-        .iter()
-        .map(|option| OptionModel {
-            name: option.name.clone(),
-            id: option.id,
-        })
-        .collect(); //["name1", "name2", "name3", "name4", "name5"];
-
+    let mut options = get_options(&mut conn);
+    let user_options = get_user_options(&mut conn, &username);
+    let set :HashSet<i32>= HashSet::from_iter(user_options.iter().map(|o| o.id));
+    options.retain(|o| !set.contains(&o.id));
     let rendered = html
         .render(context! {
-        current_user => current_user.is_some(),
+        current_user => has_user,
         title=>"home",
-        welcome_text=>format!("hello {}",current_user.unwrap_or(String::new())),
-        options=>options
+        welcome_text=>format!("hello {}",username),
+        options=>options,
+        votes=>user_options,
             })
         .unwrap();
 
