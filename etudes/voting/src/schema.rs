@@ -6,19 +6,19 @@ diesel::table! {
 }
 
 diesel::table! {
-options (id) {
-    id -> Integer,
-    name -> Text,
-    description -> Text,
-}
+    options (id) {
+        id -> Integer,
+        name -> Text,
+        description -> Text,
+    }
 }
 
 diesel::table! {
-votes(user_id,option_id,ordinal){
-    user_id -> Integer,
-    option_id -> Integer,
-    ordinal -> Integer,
-}
+    votes(user_id,option_id,ordinal){
+        user_id -> Integer,
+        option_id -> Integer,
+        ordinal -> Integer,
+    }
 }
 
 diesel::joinable!(votes -> options (option_id));
